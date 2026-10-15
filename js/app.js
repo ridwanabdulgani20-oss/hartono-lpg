@@ -213,6 +213,18 @@ function getHargaPokokByJenis(jenis) {
     return filtered.map(item => item.harga);
 }
 
+// Ambil data toko dari Master Data (dengan nilai default jika belum diisi)
+function getDataToko() {
+    const toko = localStorage.getItem('master_toko');
+    const data = toko ? JSON.parse(toko) : {};
+    return {
+        nama: data.nama || 'HARTONO',
+        alamat: data.alamat || 'Kp. Jagawana No. 64 Rt.004 Rw.005 Desa Sukarukun, Kec. Sukatani, Kab. Bekasi 17631',
+        telp: data.telp || '0813-1675-6034',
+        wa: data.wa || '0896-5305-0516'
+    };
+}
+
 function generateInvoiceNo() {
     const now = new Date();
     const y = now.getFullYear().toString().slice(-2);
@@ -670,89 +682,167 @@ function calculateTotal() {
     document.getElementById('total-penjualan').textContent = formatRupiah(total);
 }
 
-document.getElementById('form-penjualan').addEventListener('submit', (e) => {
-    e.preventDefault();
+// ===== KERANJANG PENJUALAN =====
+let keranjang = [];
+
+function renderKeranjang() {
+    const tbody = document.getElementById('tabel-keranjang');
+    const namaPelanggan = document.getElementById('nama-pelanggan');
     
+    // Kunci nama pelanggan jika keranjang berisi, buka jika kosong
+    if (keranjang.length > 0) {
+        namaPelanggan.readOnly = true;
+        namaPelanggan.style.background = '#f1f5f9';
+        namaPelanggan.style.cursor = 'not-allowed';
+    } else {
+        namaPelanggan.readOnly = false;
+        namaPelanggan.style.background = '';
+        namaPelanggan.style.cursor = '';
+    }
+    
+    if (keranjang.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">Keranjang masih kosong</td></tr>';
+        document.getElementById('total-penjualan').textContent = 'Rp 0';
+        return;
+    }
+    
+    let total = 0;
+    tbody.innerHTML = keranjang.map((item, i) => {
+        const subtotal = item.qty * item.harga;
+        total += subtotal;
+        const jenisLabel = {'3kg':'LPG 3 kg','5.5kg':'LPG 5,5 kg','12kg':'LPG 12 kg','50kg':'LPG 50 kg'}[item.jenis] || item.jenis;
+        return `
+        <tr>
+            <td>${jenisLabel}</td>
+            <td>${item.qty}</td>
+            <td>${formatRupiah(item.harga)}</td>
+            <td>${formatRupiah(subtotal)}</td>
+            <td><button type="button" class="btn btn-sm btn-danger" onclick="hapusDariKeranjang(${i})">&#128465;</button></td>
+        </tr>
+    `}).join('');
+    
+    document.getElementById('total-penjualan').textContent = formatRupiah(total);
+}
+
+function hapusDariKeranjang(index) {
+    keranjang.splice(index, 1);
+    renderKeranjang();
+}
+
+// Tombol Tambah ke keranjang
+document.getElementById('btn-tambah-keranjang').addEventListener('click', () => {
+    const namaPelanggan = document.getElementById('nama-pelanggan').value.trim();
     const jenis = document.getElementById('jenis-lpg').value;
     const qty = parseInt(document.getElementById('qty-lpg').value) || 0;
     const harga = parseInt(document.getElementById('harga-lpg').value) || 0;
     
-    if (qty === 0) {
-        showAlert('Masukkan jumlah minimal 1!', 'error');
-        return;
-    }
+    if (!namaPelanggan) { showAlert('Isi nama pelanggan terlebih dahulu!', 'error'); return; }
+    if (!jenis) { showAlert('Pilih jenis LPG terlebih dahulu!', 'error'); return; }
+    if (qty === 0) { showAlert('Masukkan jumlah minimal 1!', 'error'); return; }
+    if (harga === 0) { showAlert('Masukkan harga satuan!', 'error'); return; }
     
-    // Check stok
+    // Cek stok tersedia (dikurangi yang sudah ada di keranjang)
     const stok = Store.getStok();
-    if (jenis === '3kg' && qty > stok.lpg3kg) {
-        showAlert(`Stok LPG 3kg tidak cukup! Tersedia: ${stok.lpg3kg}`, 'error');
+    const stokTersedia = jenis === '3kg' ? stok.lpg3kg : jenis === '12kg' ? stok.lpg12kg : 999999;
+    const sudahDiKeranjang = keranjang.filter(k => k.jenis === jenis).reduce((s, k) => s + k.qty, 0);
+    if ((jenis === '3kg' || jenis === '12kg') && (qty + sudahDiKeranjang) > stokTersedia) {
+        showAlert(`Stok ${jenis} tidak cukup! Tersedia: ${stokTersedia}, di keranjang: ${sudahDiKeranjang}`, 'error');
         return;
     }
-    if (jenis === '12kg' && qty > stok.lpg12kg) {
-        showAlert(`Stok LPG 12kg tidak cukup! Tersedia: ${stok.lpg12kg}`, 'error');
+    
+    keranjang.push({ jenis, qty, harga, hargaModal: selectedHargaModal });
+    renderKeranjang();
+    
+    // Reset input item
+    document.getElementById('jenis-lpg').selectedIndex = 0;
+    document.getElementById('qty-lpg').value = '';
+    document.getElementById('harga-lpg').value = '';
+    selectedHargaModal = 0;
+});
+
+document.getElementById('form-penjualan').addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    if (keranjang.length === 0) {
+        showAlert('Keranjang masih kosong! Tambahkan barang terlebih dahulu.', 'error');
         return;
     }
     
-    const qty3kg = jenis === '3kg' ? qty : 0;
-    const qty12kg = jenis === '12kg' ? qty : 0;
+    const metodeBayar = document.getElementById('metode-bayar').value;
+    if (!metodeBayar) { showAlert('Pilih metode pembayaran!', 'error'); return; }
     
-    const transaksi = {
-        invoice: generateInvoiceNo(),
-        tanggal: document.getElementById('tgl-jual').value,
-        pelanggan: document.getElementById('nama-pelanggan').value,
-        alamat: '',
-        telepon: '',
-        jenis: jenis,
-        qty3kg: qty3kg,
-        harga3kg: jenis === '3kg' ? harga : 0,
-        qty12kg: qty12kg,
-        harga12kg: jenis === '12kg' ? harga : 0,
-        subtotal3kg: qty3kg * (jenis === '3kg' ? harga : 0),
-        subtotal12kg: qty12kg * (jenis === '12kg' ? harga : 0),
-        total: qty * harga,
-        hargaModal: selectedHargaModal,
-        totalModal: qty * selectedHargaModal,
-        keuntungan: (qty * harga) - (qty * selectedHargaModal),
-        metodeBayar: document.getElementById('metode-bayar').value,
-        keterangan: document.getElementById('keterangan-jual').value,
-        inputBy: sessionStorage.getItem('currentUser') || '-',
-        createdAt: new Date().toISOString()
-    };
+    const tanggal = document.getElementById('tgl-jual').value;
+    const pelanggan = document.getElementById('nama-pelanggan').value;
+    const keterangan = document.getElementById('keterangan-jual').value;
+    const invoice = generateInvoiceNo();
+    const user = sessionStorage.getItem('currentUser') || '-';
     
-    // Save
+    const stok = Store.getStok();
     const penjualan = Store.get('penjualan');
-    penjualan.push(transaksi);
-    Store.set('penjualan', penjualan);
-    
-    // Update stok
-    stok.lpg3kg -= qty3kg;
-    stok.lpg12kg -= qty12kg;
-    Store.setStok(stok);
-    
-    // Update distribusi stok per harga
-    if (selectedHargaModal > 0) {
-        const stokDistribusi = JSON.parse(localStorage.getItem('stok_distribusi') || '{}');
-        if (stokDistribusi[jenis] && stokDistribusi[jenis][selectedHargaModal] !== undefined) {
-            stokDistribusi[jenis][selectedHargaModal] -= qty;
-            if (stokDistribusi[jenis][selectedHargaModal] < 0) stokDistribusi[jenis][selectedHargaModal] = 0;
-            localStorage.setItem('stok_distribusi', JSON.stringify(stokDistribusi));
-        }
-    }
-    
-    // Save stok movement
     const movements = Store.get('stok_movements');
-    movements.push({
-        tanggal: transaksi.tanggal,
-        jenis: 'keluar',
-        lpg3kg: qty3kg,
-        lpg12kg: qty12kg,
-        keterangan: `Penjualan - ${transaksi.invoice}`
+    const stokDistribusi = JSON.parse(localStorage.getItem('stok_distribusi') || '{}');
+    
+    // Simpan tiap item keranjang sebagai record terpisah dengan invoice sama
+    keranjang.forEach((item, idx) => {
+        const jenis = item.jenis;
+        const qty = item.qty;
+        const harga = item.harga;
+        const hargaModal = item.hargaModal || 0;
+        const qty3kg = jenis === '3kg' ? qty : 0;
+        const qty12kg = jenis === '12kg' ? qty : 0;
+        
+        penjualan.push({
+            invoice: invoice,
+            itemIndex: idx,
+            tanggal: tanggal,
+            pelanggan: pelanggan,
+            jenis: jenis,
+            qty3kg: qty3kg,
+            harga3kg: jenis === '3kg' ? harga : 0,
+            qty12kg: qty12kg,
+            harga12kg: jenis === '12kg' ? harga : 0,
+            subtotal3kg: qty3kg * (jenis === '3kg' ? harga : 0),
+            subtotal12kg: qty12kg * (jenis === '12kg' ? harga : 0),
+            total: qty * harga,
+            hargaModal: hargaModal,
+            totalModal: qty * hargaModal,
+            keuntungan: (qty * harga) - (qty * hargaModal),
+            metodeBayar: metodeBayar,
+            keterangan: keterangan,
+            inputBy: user,
+            createdAt: new Date().toISOString()
+        });
+        
+        // Update stok
+        stok.lpg3kg -= qty3kg;
+        stok.lpg12kg -= qty12kg;
+        
+        // Update distribusi
+        if (hargaModal > 0 && stokDistribusi[jenis] && stokDistribusi[jenis][hargaModal] !== undefined) {
+            stokDistribusi[jenis][hargaModal] -= qty;
+            if (stokDistribusi[jenis][hargaModal] < 0) stokDistribusi[jenis][hargaModal] = 0;
+        }
+        
+        // Movement
+        movements.push({
+            tanggal: tanggal,
+            jenis: 'keluar',
+            lpg3kg: qty3kg,
+            lpg12kg: qty12kg,
+            keterangan: `Penjualan - ${invoice}`
+        });
     });
+    
+    Store.set('penjualan', penjualan);
+    Store.setStok(stok);
     Store.set('stok_movements', movements);
+    localStorage.setItem('stok_distribusi', JSON.stringify(stokDistribusi));
     
-    showAlert(`Transaksi ${transaksi.invoice} berhasil disimpan!`);
+    showAlert(`Transaksi ${invoice} berhasil disimpan!`);
     
-    // Reset form
+    // Reset
+    keranjang = [];
+    renderKeranjang();
     document.getElementById('nama-pelanggan').value = '';
     document.getElementById('qty-lpg').value = '';
     document.getElementById('harga-lpg').value = '';
@@ -765,7 +855,7 @@ document.getElementById('form-penjualan').addEventListener('submit', (e) => {
     refreshPenjualanHari();
     
     // Tanya cetak invoice
-    showCetakConfirm(transaksi.invoice);
+    showCetakConfirm(invoice);
 });
 
 function refreshPenjualanHari() {
@@ -795,24 +885,27 @@ function refreshPenjualanHari() {
 }
 
 function hapusPenjualan(invoice) {
-    if (!confirm('Yakin ingin menghapus transaksi ini?')) return;
+    if (!confirm('Yakin ingin menghapus transaksi ini? Semua barang dalam invoice ini akan dihapus.')) return;
     
     let penjualan = Store.get('penjualan');
-    const item = penjualan.find(p => p.invoice === invoice);
+    const items = penjualan.filter(p => p.invoice === invoice);
     
-    if (item) {
-        // Return stok
+    if (items.length > 0) {
+        // Kembalikan stok untuk semua item dalam invoice
         const stok = Store.getStok();
-        stok.lpg3kg += item.qty3kg;
-        stok.lpg12kg += item.qty12kg;
+        items.forEach(item => {
+            stok.lpg3kg += (item.qty3kg || 0);
+            stok.lpg12kg += (item.qty12kg || 0);
+        });
         Store.setStok(stok);
         
-        // Remove
+        // Hapus semua item dengan invoice ini
         penjualan = penjualan.filter(p => p.invoice !== invoice);
         Store.set('penjualan', penjualan);
         
         showAlert('Transaksi berhasil dihapus!');
-        refreshPenjualanHari();
+        if (currentLpgFilter) filterLaporanByJenis();
+        else refreshPenjualanHari();
     }
 }
 
@@ -895,20 +988,42 @@ document.getElementById('form-edit-penjualan').addEventListener('submit', (e) =>
 });
 
 // ===== INVOICE =====
+let currentInvoiceNo = null;
+
 function showInvoice(invoiceNo) {
     const penjualan = Store.get('penjualan');
-    const trx = penjualan.find(p => p.invoice === invoiceNo);
+    // Ambil semua item dengan invoice sama
+    const items = penjualan.filter(p => p.invoice === invoiceNo);
+    if (items.length === 0) return;
     
-    if (!trx) return;
+    const trx = items[0]; // info umum (tanggal, pelanggan, dll)
+    currentInvoiceNo = invoiceNo;
     
+    const totalInvoice = items.reduce((sum, it) => sum + it.total, 0);
+    
+    // Baris item
+    let itemRows = '';
+    items.forEach(it => {
+        const jenisLabel = {'3kg':'LPG 3kg','5.5kg':'LPG 5,5kg','12kg':'LPG 12kg','50kg':'LPG 50kg'}[it.jenis] || it.jenis;
+        const qty = (it.qty3kg || 0) + (it.qty12kg || 0);
+        const hargaSatuan = qty > 0 ? it.total / qty : 0;
+        itemRows += `
+            <tr>
+                <td style="padding:3px;">${jenisLabel}</td>
+                <td style="text-align:center; padding:3px;">${qty}</td>
+                <td style="text-align:right; padding:3px;">${formatRupiah(hargaSatuan)}</td>
+                <td style="text-align:right; padding:3px;">${formatRupiah(it.total)}</td>
+            </tr>`;
+    });
+    
+    const toko = getDataToko();
     const content = document.getElementById('invoice-content');
     content.innerHTML = `
         <div class="invoice-header-section" style="text-align:center; border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;">
             <img src="img/hartono.png" alt="HARTONO" style="width:80px; height:auto; object-fit:contain; margin-bottom:4px;">
-            <h1 style="font-size:16px; margin-bottom:2px;">HARTONO</h1>
-            <p style="font-size:9px; margin:0;">Kp. Jagawana No. 64 Rt.004 Rw.005</p>
-            <p style="font-size:9px; margin:0;">Desa Sukarukun, Kec. Sukatani, Kab. Bekasi 17631</p>
-            <p style="font-size:9px; margin:0;">Hubungi : 0813-1675-6034 / 0896-5305-0516</p>
+            <h1 style="font-size:16px; margin-bottom:2px;">${toko.nama}</h1>
+            <p style="font-size:9px; margin:0;">${toko.alamat}</p>
+            <p style="font-size:9px; margin:0;">Hubungi : ${toko.telp} / ${toko.wa}</p>
         </div>
         <div style="margin-bottom:8px; font-size:11px;">
             <p><strong>No:</strong> ${trx.invoice}</p>
@@ -926,24 +1041,11 @@ function showInvoice(invoiceNo) {
                 </tr>
             </thead>
             <tbody>
-                ${trx.qty3kg > 0 ? `
-                <tr>
-                    <td style="padding:3px;">LPG 3kg</td>
-                    <td style="text-align:center; padding:3px;">${trx.qty3kg}</td>
-                    <td style="text-align:right; padding:3px;">${formatRupiah(trx.harga3kg)}</td>
-                    <td style="text-align:right; padding:3px;">${formatRupiah(trx.subtotal3kg)}</td>
-                </tr>` : ''}
-                ${trx.qty12kg > 0 ? `
-                <tr>
-                    <td style="padding:3px;">LPG 12kg</td>
-                    <td style="text-align:center; padding:3px;">${trx.qty12kg}</td>
-                    <td style="text-align:right; padding:3px;">${formatRupiah(trx.harga12kg)}</td>
-                    <td style="text-align:right; padding:3px;">${formatRupiah(trx.subtotal12kg)}</td>
-                </tr>` : ''}
+                ${itemRows}
             </tbody>
         </table>
         <div style="border-top:1px dashed #333; padding-top:6px; text-align:right; font-size:14px; font-weight:700;">
-            TOTAL: ${formatRupiah(trx.total)}
+            TOTAL: ${formatRupiah(totalInvoice)}
         </div>
         <div style="margin-top:10px; text-align:center; font-size:9px; color:#666; border-top:1px dashed #333; padding-top:6px;">
             <p>Terima kasih atas pembelian Anda!</p>
@@ -975,6 +1077,114 @@ document.getElementById('btn-print-invoice').addEventListener('click', () => {
     window.print();
 });
 
+// ===== LOGO untuk PDF (base64) =====
+let _logoBase64 = null;
+(function preloadLogo() {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function () {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            _logoBase64 = canvas.toDataURL('image/png');
+        } catch (e) {
+            console.warn('Logo tidak bisa dimuat untuk PDF:', e);
+        }
+    };
+    img.src = 'img/hartono.png';
+})();
+
+// ===== UNDUH INVOICE PDF =====
+function generateInvoicePDF(invoiceNo) {
+    const penjualan = Store.get('penjualan');
+    const items = penjualan.filter(p => p.invoice === invoiceNo);
+    if (items.length === 0) return;
+    
+    const trx = items[0];
+    const totalInvoice = items.reduce((sum, it) => sum + it.total, 0);
+    
+    const toko = getDataToko();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: [80, 170 + items.length * 8] });
+    
+    let y = 8;
+    const cx = 40;
+    
+    // Logo
+    if (_logoBase64) {
+        try {
+            const logoW = 22;
+            const logoH = 22;
+            doc.addImage(_logoBase64, 'PNG', cx - logoW / 2, y, logoW, logoH);
+            y += logoH + 2;
+        } catch (e) {
+            console.warn('Gagal menambahkan logo ke PDF:', e);
+        }
+    }
+    
+    // Header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(toko.nama, cx, y, { align: 'center' });
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    // Pecah alamat jadi beberapa baris agar muat
+    const alamatLines = doc.splitTextToSize(toko.alamat, 70);
+    alamatLines.forEach(line => { doc.text(line, cx, y, { align: 'center' }); y += 3; });
+    doc.text(`Hubungi: ${toko.telp} / ${toko.wa}`, cx, y, { align: 'center' }); y += 4;
+    
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(5, y, 75, y); y += 4;
+    
+    // Info
+    doc.setFontSize(8);
+    doc.text(`No: ${trx.invoice}`, 5, y); y += 4;
+    doc.text(`Tgl: ${formatTanggal(trx.tanggal)}`, 5, y); y += 4;
+    doc.text(`Pelanggan: ${trx.pelanggan}`, 5, y); y += 4;
+    doc.text(`Bayar: ${(trx.metodeBayar || '-').toUpperCase()}`, 5, y); y += 4;
+    
+    doc.line(5, y, 75, y); y += 4;
+    
+    // Item-item
+    items.forEach(it => {
+        const jenisLabel = {'3kg':'LPG 3 Kg','5.5kg':'LPG 5,5 Kg','12kg':'LPG 12 Kg','50kg':'LPG 50 Kg'}[it.jenis] || it.jenis;
+        const qty = (it.qty3kg || 0) + (it.qty12kg || 0);
+        const hargaSatuan = qty > 0 ? it.total / qty : 0;
+        doc.setFont('helvetica', 'bold');
+        doc.text(jenisLabel, 5, y); y += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${qty} x ${formatRupiah(hargaSatuan)}`, 5, y);
+        doc.text(formatRupiah(it.total), 75, y, { align: 'right' }); y += 4;
+    });
+    
+    doc.line(5, y, 75, y); y += 5;
+    
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('TOTAL', 5, y);
+    doc.text(formatRupiah(totalInvoice), 75, y, { align: 'right' }); y += 6;
+    
+    doc.line(5, y, 75, y); y += 4;
+    
+    // Footer
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text('Terima kasih atas pembelian Anda!', cx, y, { align: 'center' }); y += 3;
+    doc.text('Barang yang sudah dibeli', cx, y, { align: 'center' }); y += 3;
+    doc.text('tidak dapat dikembalikan.', cx, y, { align: 'center' });
+    
+    doc.save(`Invoice-${trx.invoice}.pdf`);
+}
+
+document.getElementById('btn-pdf-invoice').addEventListener('click', () => {
+    if (currentInvoiceNo) generateInvoicePDF(currentInvoiceNo);
+});
+
 // ===== KONFIRMASI CETAK INVOICE =====
 let pendingInvoiceNo = null;
 
@@ -997,6 +1207,13 @@ document.getElementById('btn-cetak-ya').addEventListener('click', () => {
 document.getElementById('btn-cetak-tidak').addEventListener('click', () => {
     document.getElementById('modal-cetak-confirm').style.display = 'none';
     pendingInvoiceNo = null;
+});
+
+// Unduh PDF dari popup konfirmasi
+document.getElementById('btn-cetak-pdf').addEventListener('click', () => {
+    if (pendingInvoiceNo) {
+        generateInvoicePDF(pendingInvoiceNo);
+    }
 });
 
 // Kirim invoice via WhatsApp -> tampilkan input nomor HP
@@ -1031,31 +1248,34 @@ document.getElementById('btn-wa-kirim').addEventListener('click', () => {
     }
     
     const penjualan = Store.get('penjualan');
-    const trx = penjualan.find(p => p.invoice === pendingInvoiceNo);
-    if (!trx) return;
+    const items = penjualan.filter(p => p.invoice === pendingInvoiceNo);
+    if (items.length === 0) return;
     
-    const jenisLabel = trx.qty3kg > 0 ? 'LPG 3 Kg' : 'LPG 12 Kg';
-    const qty = (trx.qty3kg || 0) + (trx.qty12kg || 0);
-    const hargaSatuan = qty > 0 ? trx.total / qty : 0;
+    const trx = items[0];
+    const totalInvoice = items.reduce((sum, it) => sum + it.total, 0);
     
-    let pesan = `*HARTONO - LPG*\n`;
-    pesan += `Kp. Jagawana No. 64 Rt.004 Rw.005\n`;
-    pesan += `Desa Sukarukun, Kec. Sukatani, Kab. Bekasi 17631\n`;
-    pesan += `Hubungi : 0813-1675-6034 / 0896-5305-0516\n`;
+    const toko = getDataToko();
+    let pesan = `*${toko.nama}*\n`;
+    pesan += `${toko.alamat}\n`;
+    pesan += `Hubungi : ${toko.telp} / ${toko.wa}\n`;
     pesan += `------------------------------\n`;
     pesan += `No: ${trx.invoice}\n`;
     pesan += `Tgl: ${formatTanggal(trx.tanggal)}\n`;
     pesan += `Pelanggan: ${trx.pelanggan}\n`;
     pesan += `Bayar: ${(trx.metodeBayar || '-').toUpperCase()}\n`;
     pesan += `------------------------------\n`;
-    pesan += `${jenisLabel}\n`;
-    pesan += `${qty} x ${formatRupiah(hargaSatuan)} = ${formatRupiah(trx.total)}\n`;
+    items.forEach(it => {
+        const jenisLabel = {'3kg':'LPG 3 Kg','5.5kg':'LPG 5,5 Kg','12kg':'LPG 12 Kg','50kg':'LPG 50 Kg'}[it.jenis] || it.jenis;
+        const qty = (it.qty3kg || 0) + (it.qty12kg || 0);
+        const hargaSatuan = qty > 0 ? it.total / qty : 0;
+        pesan += `${jenisLabel}\n`;
+        pesan += `${qty} x ${formatRupiah(hargaSatuan)} = ${formatRupiah(it.total)}\n`;
+    });
     pesan += `------------------------------\n`;
-    pesan += `*TOTAL: ${formatRupiah(trx.total)}*\n`;
+    pesan += `*TOTAL: ${formatRupiah(totalInvoice)}*\n`;
     pesan += `------------------------------\n`;
     pesan += `Terima kasih atas pembelian Anda!`;
     
-    // Buka WhatsApp langsung ke nomor tujuan
     const url = `https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`;
     window.open(url, '_blank');
     
