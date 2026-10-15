@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="#1e293b" stroke="#6366f1" stroke-width="2"/>
+  
+  <!-- Tank body -->
+  <rect x="65" y="70" width="70" height="85" rx="8" fill="#22c55e"/>
+  <rect x="65" y="70" width="70" height="85" rx="8" fill="url(#tankGrad)"/>
+  
+  <!-- Tank top curve -->
+  <path d="M75 70 Q100 55 125 70" fill="#16a34a" stroke="#15803d" stroke-width="1"/>
+  
+  <!-- Tank handle/valve area -->
+  <rect x="88" y="45" width="24" height="20" rx="5" fill="#475569"/>
+  <rect x="93" y="35" width="14" height="14" rx="4" fill="#64748b"/>
+  
+  <!-- Valve wheel -->
+  <circle cx="100" cy="42" r="6" fill="none" stroke="#94a3b8" stroke-width="2.5"/>
+  <line x1="100" y1="36" x2="100" y2="48" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="94" y1="42" x2="106" y2="42" stroke="#94a3b8" stroke-width="2"/>
+  
+  <!-- Tank highlight -->
+  <rect x="72" y="78" width="12" height="55" rx="6" fill="rgba(255,255,255,0.15)"/>
+  
+  <!-- Flame icon on tank -->
+  <path d="M100 95 C93 103 89 110 92 116 C94 120 97 119 100 115 C103 119 106 120 108 116 C111 110 107 103 100 95Z" fill="#fbbf24" stroke="#f59e0b" stroke-width="0.5"/>
+  <path d="M100 100 C96 105 94 109 96 113 C97 115 99 114 100 112 C101 114 103 115 104 113 C106 109 104 105 100 100Z" fill="#fef3c7"/>
+  
+  <!-- LPG Text -->
+  <text x="100" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white" letter-spacing="2">LPG</text>
+  
+  <!-- HARTONO Text -->
+  <text x="100" y="172" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#a5b4fc" letter-spacing="3">HARTONO</text>
+  
+  <!-- Decorative arc -->
+  <path d="M40 100 A60 60 0 0 1 100 40" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <path d="M160 100 A60 60 0 0 1 100 160" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
+  
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="tankGrad" x1="65" y1="70" x2="135" y2="155" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4ade80" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#16a34a" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+</svg>
