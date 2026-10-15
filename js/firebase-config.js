@@ -28,11 +28,13 @@ const _origGetItem = localStorage.getItem.bind(localStorage);
 let _isApplyingCloudUpdate = false;
 // Menandai apakah proses sinkron awal sudah selesai
 let _initialSyncDone = false;
+// Menandai proses penghapusan data sedang berlangsung (agar tidak ada push/pull liar)
+window._clearingData = false;
 
 // Intercept setItem: setiap kali data berubah, kirim ke Firestore
 localStorage.setItem = function (key, value) {
     _origSetItem(key, value);
-    if (SYNC_KEYS.includes(key) && !_isApplyingCloudUpdate && _initialSyncDone && window.db) {
+    if (SYNC_KEYS.includes(key) && !_isApplyingCloudUpdate && _initialSyncDone && !window._clearingData && window.db) {
         db.collection('appdata').doc(key).set({ value: value, updatedAt: Date.now() })
             .catch(err => console.error('Gagal sinkron ke cloud:', err));
     }
@@ -73,11 +75,13 @@ function setupRealtimeSync() {
     if (!window.db) return;
     db.collection('appdata').onSnapshot(snapshot => {
         if (snapshot.metadata.hasPendingWrites) return;
+        // Jangan proses apa pun saat sedang menghapus semua data
+        if (window._clearingData) return;
 
         let adaPerubahan = false;
         snapshot.docChanges().forEach(change => {
+            const key = change.doc.id;
             if (change.type === 'added' || change.type === 'modified') {
-                const key = change.doc.id;
                 const value = change.doc.data().value;
                 if (value != null && _origGetItem(key) !== value) {
                     _isApplyingCloudUpdate = true;
@@ -85,6 +89,12 @@ function setupRealtimeSync() {
                     _isApplyingCloudUpdate = false;
                     adaPerubahan = true;
                 }
+            } else if (change.type === 'removed') {
+                // Data dihapus di perangkat lain -> hapus juga di lokal
+                _isApplyingCloudUpdate = true;
+                localStorage.removeItem(key);
+                _isApplyingCloudUpdate = false;
+                adaPerubahan = true;
             }
         });
         if (adaPerubahan && typeof window.refreshCurrentPage === 'function') {

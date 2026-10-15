@@ -2277,27 +2277,31 @@ document.getElementById('btn-clear-data').addEventListener('click', async () => 
         return;
     }
     
-    // Data yang dihapus (semua kecuali akun bawaan yang memang hardcoded)
     const keys = ['penjualan', 'barang_masuk', 'pengeluaran', 'stok', 'stok_movements', 'master_lpg', 'master_users', 'master_toko', 'master_harga', 'stok_distribusi'];
+    
+    // Aktifkan flag agar sinkronisasi tidak mengembalikan data saat proses hapus
+    window._clearingData = true;
     
     showAlert('Menghapus semua data...');
     
-    // Hapus dari localStorage
-    keys.forEach(key => localStorage.removeItem(key));
-    
-    // Hapus dari cloud Firestore (jika terhubung)
+    // Hapus dari cloud Firestore DULU (jika terhubung), tunggu sampai selesai
     if (window.db) {
         try {
-            for (const key of keys) {
-                await window.db.collection('appdata').doc(key).delete();
-            }
+            await Promise.all(keys.map(key => window.db.collection('appdata').doc(key).delete()));
         } catch (err) {
             console.error('Gagal menghapus data cloud:', err);
+            window._clearingData = false;
+            showAlert('Gagal menghapus data di cloud. Coba lagi.', 'error');
+            return;
         }
     }
     
+    // Setelah cloud bersih, hapus localStorage
+    keys.forEach(key => localStorage.removeItem(key));
+    
     showAlert('Semua data telah dihapus. Halaman akan dimuat ulang.');
-    setTimeout(() => location.reload(), 1500);
+    // Reload setelah jeda agar penghapusan cloud benar-benar ter-commit
+    setTimeout(() => location.reload(), 2000);
 });
 
 // ===== INIT =====
