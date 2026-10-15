@@ -41,26 +41,36 @@ checkLogin();
 // ===== ROLE MANAGEMENT =====
 function applyRole(username) {
     const isAdmin = (username === 'admin');
+    const isDefault = (username === 'admin' || username === 'hartono');
+    
+    // Halaman khusus admin (stok & master data)
     const adminOnlyPages = ['stok', 'master-data'];
+    // Halaman yang disembunyikan untuk pengguna bukan bawaan
+    const nonDefaultHiddenPages = ['dashboard', 'pengeluaran'];
     
     document.querySelectorAll('.nav-link[data-page]').forEach(link => {
         const page = link.dataset.page;
-        if (adminOnlyPages.includes(page)) {
-            link.style.display = isAdmin ? '' : 'none';
-        }
+        let hidden = false;
+        
+        if (adminOnlyPages.includes(page) && !isAdmin) hidden = true;
+        if (nonDefaultHiddenPages.includes(page) && !isDefault) hidden = true;
+        
+        link.style.display = hidden ? 'none' : '';
     });
     
-    // If non-admin is on admin-only page, redirect to penjualan
-    if (!isAdmin) {
-        const activePage = document.querySelector('.page.active');
-        if (activePage) {
-            const pageId = activePage.id.replace('page-', '');
-            if (adminOnlyPages.includes(pageId)) {
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.getElementById('page-penjualan').classList.add('active');
-                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-                document.querySelector('.nav-link[data-page="penjualan"]').classList.add('active');
-            }
+    // Jika pengguna sedang di halaman yang tidak boleh diakses, alihkan ke Input Penjualan
+    const activePage = document.querySelector('.page.active');
+    if (activePage) {
+        const pageId = activePage.id.replace('page-', '');
+        let terlarang = false;
+        if (adminOnlyPages.includes(pageId) && !isAdmin) terlarang = true;
+        if (nonDefaultHiddenPages.includes(pageId) && !isDefault) terlarang = true;
+        
+        if (terlarang) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-penjualan').classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector('.nav-link[data-page="penjualan"]').classList.add('active');
         }
     }
 }
