@@ -999,6 +999,70 @@ document.getElementById('btn-cetak-tidak').addEventListener('click', () => {
     pendingInvoiceNo = null;
 });
 
+// Kirim invoice via WhatsApp -> tampilkan input nomor HP
+document.getElementById('btn-cetak-wa').addEventListener('click', () => {
+    if (!pendingInvoiceNo) return;
+    document.getElementById('modal-cetak-confirm').style.display = 'none';
+    document.getElementById('input-wa-nomor').value = '';
+    document.getElementById('modal-wa-nomor').style.display = 'flex';
+    setTimeout(() => document.getElementById('input-wa-nomor').focus(), 100);
+});
+
+document.getElementById('btn-wa-batal').addEventListener('click', () => {
+    document.getElementById('modal-wa-nomor').style.display = 'none';
+    pendingInvoiceNo = null;
+});
+
+document.getElementById('btn-wa-kirim').addEventListener('click', () => {
+    if (!pendingInvoiceNo) return;
+    
+    let nomor = document.getElementById('input-wa-nomor').value.trim();
+    if (!nomor) {
+        showAlert('Masukkan nomor WhatsApp terlebih dahulu!', 'error');
+        return;
+    }
+    
+    // Normalisasi nomor ke format internasional (62)
+    nomor = nomor.replace(/[^0-9]/g, '');
+    if (nomor.startsWith('0')) {
+        nomor = '62' + nomor.substring(1);
+    } else if (nomor.startsWith('8')) {
+        nomor = '62' + nomor;
+    }
+    
+    const penjualan = Store.get('penjualan');
+    const trx = penjualan.find(p => p.invoice === pendingInvoiceNo);
+    if (!trx) return;
+    
+    const jenisLabel = trx.qty3kg > 0 ? 'LPG 3 Kg' : 'LPG 12 Kg';
+    const qty = (trx.qty3kg || 0) + (trx.qty12kg || 0);
+    const hargaSatuan = qty > 0 ? trx.total / qty : 0;
+    
+    let pesan = `*HARTONO - LPG*\n`;
+    pesan += `Kp. Jagawana No. 64 Rt.004 Rw.005\n`;
+    pesan += `Desa Sukarukun, Kec. Sukatani, Kab. Bekasi 17631\n`;
+    pesan += `Hubungi : 0813-1675-6034 / 0896-5305-0516\n`;
+    pesan += `------------------------------\n`;
+    pesan += `No: ${trx.invoice}\n`;
+    pesan += `Tgl: ${formatTanggal(trx.tanggal)}\n`;
+    pesan += `Pelanggan: ${trx.pelanggan}\n`;
+    pesan += `Bayar: ${(trx.metodeBayar || '-').toUpperCase()}\n`;
+    pesan += `------------------------------\n`;
+    pesan += `${jenisLabel}\n`;
+    pesan += `${qty} x ${formatRupiah(hargaSatuan)} = ${formatRupiah(trx.total)}\n`;
+    pesan += `------------------------------\n`;
+    pesan += `*TOTAL: ${formatRupiah(trx.total)}*\n`;
+    pesan += `------------------------------\n`;
+    pesan += `Terima kasih atas pembelian Anda!`;
+    
+    // Buka WhatsApp langsung ke nomor tujuan
+    const url = `https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`;
+    window.open(url, '_blank');
+    
+    document.getElementById('modal-wa-nomor').style.display = 'none';
+    pendingInvoiceNo = null;
+});
+
 // ===== BARANG MASUK =====
 document.getElementById('tgl-masuk').value = getTodayStr();
 
