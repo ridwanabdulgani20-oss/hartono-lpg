@@ -54,11 +54,11 @@ async function initialSync() {
             const localValue = _origGetItem(key);
             const cloudEntry = cloudData[key];
 
-            if (cloudEntry && cloudEntry.value != null) {
-                // Cloud punya data -> pakai data cloud (sumber kebenaran)
+            if (cloudEntry && cloudEntry.value !== undefined) {
+                // Cloud sudah punya entri (termasuk nilai kosong) -> cloud adalah sumber kebenaran
                 _origSetItem(key, cloudEntry.value);
             } else if (localValue != null) {
-                // Cloud kosong tapi lokal ada -> dorong lokal ke cloud
+                // Cloud belum pernah punya entri sama sekali -> dorong lokal ke cloud
                 await db.collection('appdata').doc(key).set({ value: localValue, updatedAt: Date.now() });
             }
         }

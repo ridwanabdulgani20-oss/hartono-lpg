@@ -2277,30 +2277,44 @@ document.getElementById('btn-clear-data').addEventListener('click', async () => 
         return;
     }
     
-    const keys = ['penjualan', 'barang_masuk', 'pengeluaran', 'stok', 'stok_movements', 'master_lpg', 'master_users', 'master_toko', 'master_harga', 'stok_distribusi'];
+    // Nilai "kosong" untuk tiap data (bukan dihapus, tapi dikosongkan agar sync konsisten)
+    const emptyValues = {
+        'penjualan': '[]',
+        'barang_masuk': '[]',
+        'pengeluaran': '[]',
+        'stok_movements': '[]',
+        'master_lpg': '[]',
+        'master_users': '[]',
+        'stok': JSON.stringify({ lpg3kg: 0, lpg12kg: 0 }),
+        'stok_distribusi': '{}',
+        'master_harga': '{}',
+        'master_toko': '{}'
+    };
+    const keys = Object.keys(emptyValues);
     
-    // Aktifkan flag agar sinkronisasi tidak mengembalikan data saat proses hapus
+    // Aktifkan flag agar sinkronisasi tidak berjalan saat proses hapus
     window._clearingData = true;
     
     showAlert('Menghapus semua data...');
     
-    // Hapus dari cloud Firestore DULU (jika terhubung), tunggu sampai selesai
+    // Set nilai kosong ke cloud Firestore (jika terhubung), tunggu sampai selesai
     if (window.db) {
         try {
-            await Promise.all(keys.map(key => window.db.collection('appdata').doc(key).delete()));
+            await Promise.all(keys.map(key =>
+                window.db.collection('appdata').doc(key).set({ value: emptyValues[key], updatedAt: Date.now() })
+            ));
         } catch (err) {
-            console.error('Gagal menghapus data cloud:', err);
+            console.error('Gagal mengosongkan data cloud:', err);
             window._clearingData = false;
             showAlert('Gagal menghapus data di cloud. Coba lagi.', 'error');
             return;
         }
     }
     
-    // Setelah cloud bersih, hapus localStorage
+    // Kosongkan juga localStorage
     keys.forEach(key => localStorage.removeItem(key));
     
     showAlert('Semua data telah dihapus. Halaman akan dimuat ulang.');
-    // Reload setelah jeda agar penghapusan cloud benar-benar ter-commit
     setTimeout(() => location.reload(), 2000);
 });
 
