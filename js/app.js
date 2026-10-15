@@ -2269,15 +2269,35 @@ document.getElementById('btn-sync-cloud').addEventListener('click', async () => 
     }
 });
 
-document.getElementById('btn-clear-data').addEventListener('click', () => {
-    if (confirm('PERINGATAN: Semua data transaksi, stok, dan pengaturan akan dihapus permanen. Pastikan Anda sudah mencadangkan data terlebih dahulu. Lanjutkan?')) {
-        if (confirm('Anda YAKIN? Data tidak bisa dikembalikan!')) {
-            const keys = ['penjualan', 'barang_masuk', 'pengeluaran', 'stok', 'stok_movements', 'master_lpg', 'master_users', 'master_toko', 'master_harga'];
-            keys.forEach(key => localStorage.removeItem(key));
-            showAlert('Semua data telah dihapus. Halaman akan dimuat ulang.');
-            setTimeout(() => location.reload(), 1500);
+document.getElementById('btn-clear-data').addEventListener('click', async () => {
+    if (!confirm('PERINGATAN: Semua data transaksi, stok, dan pengaturan akan dihapus permanen. Pengguna bawaan (admin & hartono) tetap aman. Pastikan Anda sudah mencadangkan data terlebih dahulu. Lanjutkan?')) {
+        return;
+    }
+    if (!confirm('Anda YAKIN? Data tidak bisa dikembalikan!')) {
+        return;
+    }
+    
+    // Data yang dihapus (semua kecuali akun bawaan yang memang hardcoded)
+    const keys = ['penjualan', 'barang_masuk', 'pengeluaran', 'stok', 'stok_movements', 'master_lpg', 'master_users', 'master_toko', 'master_harga', 'stok_distribusi'];
+    
+    showAlert('Menghapus semua data...');
+    
+    // Hapus dari localStorage
+    keys.forEach(key => localStorage.removeItem(key));
+    
+    // Hapus dari cloud Firestore (jika terhubung)
+    if (window.db) {
+        try {
+            for (const key of keys) {
+                await window.db.collection('appdata').doc(key).delete();
+            }
+        } catch (err) {
+            console.error('Gagal menghapus data cloud:', err);
         }
     }
+    
+    showAlert('Semua data telah dihapus. Halaman akan dimuat ulang.');
+    setTimeout(() => location.reload(), 1500);
 });
 
 // ===== INIT =====
