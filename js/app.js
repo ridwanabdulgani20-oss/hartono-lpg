@@ -1020,8 +1020,7 @@ function showInvoice(invoiceNo) {
     const content = document.getElementById('invoice-content');
     content.innerHTML = `
         <div class="invoice-header-section" style="text-align:center; border-bottom:1px dashed #333; padding-bottom:8px; margin-bottom:8px;">
-            <img src="img/hartono.png" alt="HARTONO" style="width:80px; height:auto; object-fit:contain; margin-bottom:4px;">
-            <h1 style="font-size:16px; margin-bottom:2px;">${toko.nama}</h1>
+            <img src="img/hartono.png" alt="HARTONO" style="width:90px; height:auto; object-fit:contain; margin-bottom:4px;">
             <p style="font-size:9px; margin:0;">${toko.alamat}</p>
             <p style="font-size:9px; margin:0;">Hubungi : ${toko.telp} / ${toko.wa}</p>
         </div>
@@ -1125,11 +1124,7 @@ function generateInvoicePDF(invoiceNo) {
         }
     }
     
-    // Header
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text(toko.nama, cx, y, { align: 'center' });
-    y += 5;
+    // Header (nama toko tidak ditulis karena sudah ada di logo)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     // Pecah alamat jadi beberapa baris agar muat
