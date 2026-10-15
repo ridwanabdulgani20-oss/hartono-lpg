@@ -46,7 +46,7 @@ function applyRole(username) {
     // Halaman khusus admin (stok & master data)
     const adminOnlyPages = ['stok', 'master-data'];
     // Halaman yang disembunyikan untuk pengguna bukan bawaan
-    const nonDefaultHiddenPages = ['dashboard', 'pengeluaran'];
+    const nonDefaultHiddenPages = ['pengeluaran'];
     
     document.querySelectorAll('.nav-link[data-page]').forEach(link => {
         const page = link.dataset.page;
@@ -1772,7 +1772,16 @@ function filterLaporanByJenis() {
     }
     
     // Filter by jenis and date range
-    const filtered = penjualan.filter(p => p.jenis === currentLpgFilter && p.tanggal >= startDate && p.tanggal <= endDate);
+    // Pengguna bukan bawaan hanya melihat transaksi yang mereka input sendiri
+    const currentUser = sessionStorage.getItem('currentUser');
+    const isDefaultUser = (currentUser === 'admin' || currentUser === 'hartono');
+    
+    const filtered = penjualan.filter(p => {
+        if (p.jenis !== currentLpgFilter) return false;
+        if (p.tanggal < startDate || p.tanggal > endDate) return false;
+        if (!isDefaultUser && p.inputBy !== currentUser) return false;
+        return true;
+    });
     
     // Summary cards
     const totalPenjualan = filtered.reduce((sum, p) => sum + p.total, 0);
@@ -1860,8 +1869,15 @@ function generateLaporan(periode) {
     }
     
     const penjualan = Store.get('penjualan');
-    // Filter by jenis LPG AND date range
-    const filtered = penjualan.filter(p => p.jenis === currentLpgFilter && p.tanggal >= startDate && p.tanggal <= endDate);
+    // Filter by jenis LPG AND date range (pengguna non-bawaan hanya lihat data sendiri)
+    const currentUser = sessionStorage.getItem('currentUser');
+    const isDefaultUser = (currentUser === 'admin' || currentUser === 'hartono');
+    const filtered = penjualan.filter(p => {
+        if (p.jenis !== currentLpgFilter) return false;
+        if (p.tanggal < startDate || p.tanggal > endDate) return false;
+        if (!isDefaultUser && p.inputBy !== currentUser) return false;
+        return true;
+    });
     
     // Summary
     const totalTransaksi = filtered.length;
