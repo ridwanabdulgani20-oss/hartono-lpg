@@ -908,7 +908,7 @@ function showInvoice(invoiceNo) {
             <h1 style="font-size:16px; margin-bottom:2px;">HARTONO</h1>
             <p style="font-size:9px; margin:0;">Kp. Jagawana No. 64 Rt.004 Rw.005</p>
             <p style="font-size:9px; margin:0;">Desa Sukarukun, Kec. Sukatani, Kab. Bekasi 17631</p>
-            <p style="font-size:9px; margin:0;">Telp: 0813-1675-6034 | WA: 0812-1302-0711</p>
+            <p style="font-size:9px; margin:0;">Hubungi : 0813-1675-6034 / 0896-5305-0516</p>
         </div>
         <div style="margin-bottom:8px; font-size:11px;">
             <p><strong>No:</strong> ${trx.invoice}</p>
